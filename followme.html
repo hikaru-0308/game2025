@@ -65,6 +65,7 @@ const messageEl = document.getElementById("message");
 const startBtn = document.getElementById("startBtn");
 
 function nextInstruction() {
+  clearTimeout(timeoutId);
   messageEl.textContent = "";
   const idx = Math.floor(Math.random() * instructions.length);
   currentInstruction = instructions[idx];
@@ -72,13 +73,15 @@ function nextInstruction() {
   acceptingInput = true;
 
   timeoutId = setTimeout(() => {
-    if (acceptingInput) {
-      if (currentInstruction.ignore) {
-        // 「無視」で押さなかった → 成功！
-        success();
-      } else {
-        endGame("時間切れ！");
-      }
+    if (!acceptingInput) return; // 既に入力済みなら無視
+
+    // 「無視」だけは何も押さないのが正解
+    if (currentInstruction.ignore) {
+      acceptingInput = false;
+      success();
+    } else {
+      acceptingInput = false;
+      endGame("時間切れ！");
     }
   }, timeLimit);
 }
@@ -89,21 +92,27 @@ function handleInput(e) {
 
   // 「無視」指示中に何か押したら即アウト
   if (currentInstruction.ignore) {
+    acceptingInput = false;
+    clearTimeout(timeoutId);
     endGame("押したらダメ！『無視』だった！");
     return;
   }
 
-  // 通常指示の処理
+  // 通常指示
   if (currentInstruction.correct) {
     if (currentInstruction.correct.includes(key)) {
+      acceptingInput = false;
       success();
     } else {
+      acceptingInput = false;
       endGame("間違い！");
     }
   } else if (currentInstruction.avoid) {
     if (currentInstruction.avoid.includes(key)) {
+      acceptingInput = false;
       endGame("押しちゃダメ！");
     } else {
+      acceptingInput = false;
       success();
     }
   }
@@ -115,7 +124,7 @@ function success() {
   score++;
   scoreEl.textContent = "スコア: " + score;
   messageEl.textContent = "正解！";
-  // スピードアップ
+  // スピードアップ（1秒以下にはならない）
   timeLimit = Math.max(minTimeLimit, timeLimit - speedUp);
   setTimeout(nextInstruction, 800);
 }
@@ -132,6 +141,7 @@ startBtn.addEventListener("click", () => {
   score = 0;
   timeLimit = 3000;
   scoreEl.textContent = "スコア: 0";
+  messageEl.textContent = "";
   startBtn.style.display = "none";
   nextInstruction();
 });
