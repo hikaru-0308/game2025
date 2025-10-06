@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反射神経ゲーム：指示に従え！</title>
+<style>
+  body {
+    font-family: "Segoe UI", sans-serif;
+    background: radial-gradient(circle at center, #111, #000);
+    color: white;
+    text-align: center;
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  h1 { font-size: 2rem; margin-bottom: 1rem; }
+  #instruction { font-size: 3rem; font-weight: bold; margin: 2rem 0; color: #4ef3ff; }
+  #score { font-size: 1.5rem; margin-bottom: 1rem; }
+  #message { font-size: 1.2rem; margin-top: 1rem; height: 2rem; }
+  button {
+    background: #4ef3ff; color: #000; border: none; border-radius: 12px;
+    padding: 12px 24px; font-size: 1.2rem; cursor: pointer;
+    transition: 0.2s;
+  }
+  button:hover { background: #35bcd6; transform: scale(1.05); }
+</style>
+</head>
+<body>
+  <h1> 指示に従え！</h1>
+  <div id="score">スコア: 0</div>
+  <div id="instruction">スタートを押してね</div>
+  <button id="startBtn">スタート</button>
+  <div id="message"></div>
+
+<script>
+const instructions = [
+  { text: "右", correct: ["ArrowRight", "d", "D"] },
+  { text: "左", correct: ["ArrowLeft", "a", "A"] },
+  { text: "上", correct: ["ArrowUp", "w", "W"] },
+  { text: "下", correct: ["ArrowDown", "s", "S"] },
+  { text: "右じゃない", avoid: ["ArrowRight", "d", "D"] },
+  { text: "左じゃない", avoid: ["ArrowLeft", "a", "A"] },
+  { text: "上じゃない", avoid: ["ArrowUp", "w", "W"] },
+  { text: "下じゃない", avoid: ["ArrowDown", "s", "S"] },
+  { text: "上以外", avoid: ["ArrowUp", "w", "W"] },
+  { text: "下じゃないじゃない", correct: ["ArrowDown", "s", "S"] },
+  { text: "無視", ignore: true } // 特殊ルール
+];
+
+let currentInstruction = null;
+let score = 0;
+let timeoutId = null;
+let acceptingInput = false;
+let timeLimit = 3000; // 初期3秒
+const minTimeLimit = 1000; // 最短1秒
+const speedUp = 200; // 成功ごとに0.2秒短縮
+
+const instructionEl = document.getElementById("instruction");
+const scoreEl = document.getElementById("score");
+const messageEl = document.getElementById("message");
+const startBtn = document.getElementById("startBtn");
+
+function nextInstruction() {
+  clearTimeout(timeoutId);
+  messageEl.textContent = "";
+  const idx = Math.floor(Math.random() * instructions.length);
+  currentInstruction = instructions[idx];
+  instructionEl.textContent = currentInstruction.text;
+  acceptingInput = true;
+
+  timeoutId = setTimeout(() => {
+    if (!acceptingInput) return; // 既に入力済みなら無視
+
+    // 「無視」だけは何も押さないのが正解
+    if (currentInstruction.ignore) {
+      acceptingInput = false;
+      success();
+    } else {
+      acceptingInput = false;
+      endGame("時間切れ！");
+    }
+  }, timeLimit);
+}
+
+function handleInput(e) {
+  if (!acceptingInput) return;
+  const key = e.key;
+
+  // 「無視」指示中に何か押したら即アウト
+  if (currentInstruction.ignore) {
+    acceptingInput = false;
+    clearTimeout(timeoutId);
+    endGame("押したらダメ！『無視』だった！");
+    return;
+  }
+
+  // 通常指示
+  if (currentInstruction.correct) {
+    if (currentInstruction.correct.includes(key)) {
+      acceptingInput = false;
+      success();
+    } else {
+      acceptingInput = false;
+      endGame("間違い！");
+    }
+  } else if (currentInstruction.avoid) {
+    if (currentInstruction.avoid.includes(key)) {
+      acceptingInput = false;
+      endGame("押しちゃダメ！");
+    } else {
+      acceptingInput = false;
+      success();
+    }
+  }
+}
+
+function success() {
+  clearTimeout(timeoutId);
+  acceptingInput = false;
+  score++;
+  scoreEl.textContent = "スコア: " + score;
+  messageEl.textContent = "正解！";
+  // スピードアップ（1秒以下にはならない）
+  timeLimit = Math.max(minTimeLimit, timeLimit - speedUp);
+  setTimeout(nextInstruction, 800);
+}
+
+function endGame(reason) {
+  clearTimeout(timeoutId);
+  acceptingInput = false;
+  messageEl.textContent = reason + " ゲームオーバー！";
+  instructionEl.textContent = "スコア: " + score;
+  startBtn.style.display = "inline-block";
+}
+
+startBtn.addEventListener("click", () => {
+  score = 0;
+  timeLimit = 3000;
+  scoreEl.textContent = "スコア: 0";
+  messageEl.textContent = "";
+  startBtn.style.display = "none";
+  nextInstruction();
+});
+
+window.addEventListener("keydown", handleInput);
+</script>
+</body>
+</html>
