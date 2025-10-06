@@ -1,1 +1,155 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>オセロゲーム</title>
+<style>
+  body { font-family: sans-serif; text-align: center; }
+  #board { 
+    display: grid; 
+    grid-template-columns: repeat(8, 40px);
+    grid-template-rows: repeat(8, 40px);
+    gap: 2px;
+    margin: 20px auto;
+    width: fit-content;
+  }
+  .cell {
+    width: 40px; height: 40px;
+    background-color: green;
+    border-radius: 5px;
+    position: relative;
+    cursor: pointer;
+  }
+  .black, .white {
+    position: absolute;
+    top: 5px; left: 5px; right: 5px; bottom: 5px;
+    border-radius: 50%;
+  }
+  .black {
+    background-color: black;
+  }
+  .white {
+    background-color: white;
+  }
+  #info {
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<h1>オセロゲーム</h1>
+<div id="board"></div>
+<div id="info">黒のターンです</div>
+
+<script>
+  const boardSize = 8;
+  let board = [];
+  let currentPlayer = 'black'; // 黒が先手
+  const boardDiv = document.getElementById('board');
+  const infoDiv = document.getElementById('info');
+
+  function initBoard() {
+    // 2D配列初期化 空は null
+    board = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
+    // 初期4石配置
+    board[3][3] = 'white';
+    board[3][4] = 'black';
+    board[4][3] = 'black';
+    board[4][4] = 'white';
+  }
+
+  function renderBoard() {
+    boardDiv.innerHTML = '';
+    for(let y = 0; y < boardSize; y++) {
+      for(let x = 0; x < boardSize; x++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+        cell.dataset.x = x;
+        cell.dataset.y = y;
+
+        if(board[y][x]) {
+          const stone = document.createElement('div');
+          stone.classList.add(board[y][x]);
+          cell.appendChild(stone);
+        }
+
+        cell.addEventListener('click', () => onCellClick(x, y));
+        boardDiv.appendChild(cell);
+      }
+    }
+    infoDiv.textContent = currentPlayer === 'black' ? '黒のターンです' : '白のターンです';
+  }
+
+  function onCellClick(x, y) {
+    if(board[y][x] !== null) return; // 既に石あり
+
+    if(!canPutStone(x, y, currentPlayer)) {
+      alert('そこには置けません！');
+      return;
+    }
+
+    putStone(x, y, currentPlayer);
+    currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+    renderBoard();
+  }
+
+  // 石を置けるか判定(ひっくり返せる石があるかチェック)
+  function canPutStone(x, y, color) {
+    // 盤外チェック
+    if(x < 0 || x >= boardSize || y < 0 || y >= boardSize) return false;
+    if(board[y][x] !== null) return false;
+
+    return getFlippableStones(x, y, color).length > 0;
+  }
+
+  // 置いたらひっくり返せる石の座標リストを返す
+  function getFlippableStones(x, y, color) {
+    const opponent = color === 'black' ? 'white' : 'black';
+    const directions = [
+      [-1, -1], [0, -1], [1, -1],
+      [-1, 0],           [1, 0],
+      [-1, 1],  [0, 1],  [1, 1],
+    ];
+    let flippable = [];
+
+    for(const [dx, dy] of directions) {
+      let nx = x + dx;
+      let ny = y + dy;
+      let stonesToFlip = [];
+
+      while(nx >= 0 && nx < boardSize && ny >= 0 && ny < boardSize) {
+        if(board[ny][nx] === opponent) {
+          stonesToFlip.push([nx, ny]);
+        } else if(board[ny][nx] === color) {
+          if(stonesToFlip.length > 0) {
+            flippable = flippable.concat(stonesToFlip);
+          }
+          break;
+        } else {
+          break;
+        }
+        nx += dx;
+        ny += dy;
+      }
+    }
+
+    return flippable;
+  }
+
+  // 石を置いてひっくり返す
+  function putStone(x, y, color) {
+    const stonesToFlip = getFlippableStones(x, y, color);
+    board[y][x] = color;
+    for(const [fx, fy] of stonesToFlip) {
+      board[fy][fx] = color;
+    }
+  }
+
+  initBoard();
+  renderBoard();
+</script>
+
+</body>
+</html>
 
