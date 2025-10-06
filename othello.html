@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>オセロ（Reversi） - シンプルJS版</title>
+  <style>
+    :root{--board-size: min(90vmin,720px);} 
+    body{font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; display:flex; gap:24px; align-items:flex-start; justify-content:center; padding:24px; background:linear-gradient(180deg,#eaf2ff,#ffffff);}
+    .container{display:flex;flex-direction:column;align-items:center;gap:12px}
+    h1{font-size:20px;margin:0}
+    .board{width:var(--board-size);height:var(--board-size);display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,0.12)}
+    .cell{position:relative;border:1px solid rgba(0,0,0,0.08);background:linear-gradient(180deg,#2c6b2c,#1f5a1f);display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .cell:hover{filter:brightness(1.06)}
+    .disc{width:74%;height:74%;border-radius:50%;box-shadow:inset 0 -6px 10px rgba(0,0,0,0.15);transition:transform .18s ease,opacity .18s ease}
+    .disc.black{background:radial-gradient(circle at 30% 30%,#666,#000);}
+    .disc.white{background:radial-gradient(circle at 30% 30%,#fff,#ddd);}
+    .hint{position:absolute;width:16%;height:16%;border-radius:50%;background:rgba(255,255,255,0.85);opacity:0.9;}
+    .controls{display:flex;flex-direction:column;gap:8px;padding:12px;width:300px;background:#fff;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+    .row{display:flex;gap:8px;align-items:center}
+    button{padding:8px 12px;border-radius:8px;border:1px solid rgba(0,0,0,0.08);background:#f5f7fb;cursor:pointer}
+    button.primary{background:#0b76ff;color:white;border:none}
+    .score{display:flex;gap:8px;font-weight:600}
+    .small{font-size:13px;color:#555}
+    .muted{color:#666}
+    .footer{font-size:13px;color:#444}
+    @media(max-width:900px){body{flex-direction:column;align-items:center}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>オセロ（Reversi） - シンプルJS</h1>
+    <div id="board" class="board" aria-label="オセロ盤"></div>
+    <div class="small muted">クリックで置く — 合法手は白い小円で表示されます</div>
+  </div>
+
+  <div class="controls">
+    <div class="row score">
+      <div>黒 (●): <span id="score-black">2</span></div>
+      <div>白 (○): <span id="score-white">2</span></div>
+    </div>
+    <div class="row"><div>現在の手番: <strong id="turn">黒</strong></div></div>
+    <div class="row">
+      <button id="restart">リスタート</button>
+      <button id="flip-start">先手切替（黒/白）</button>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="aiToggle"> コンピュータと対戦</label>
+      <select id="aiLevel" style="margin-left:8px">
+        <option value="random">ランダム</option>
+        <option value="greedy" selected>貪欲(取れる枚数最大)</option>
+      </select>
+    </div>
+    <div class="row">
+      <button id="passBtn">パス</button>
+      <button id="undoBtn">戻す（未実装）</button>
+    </div>
+    <div class="row footer">
+      <div>ルール: 相手の駒を挟むように置くと相手の駒が裏返ります。合法手が無い場合はパス。ゲーム終了は両者パスまたは盤が埋まったとき。</div>
+    </div>
+  </div>
+
+  <script>
+    // board[y][x] : 0 empty, 1 black, -1 white
+    const SIZE = 8;
+    let board = [];
+    let current = 1; // 1 black, -1 white
+    let aiEnabled = false;
+    let aiLevel = 'greedy';
+
+    const boardEl = document.getElementById('board');
+    const scoreBlackEl = document.getElementById('score-black');
+    const scoreWhiteEl = document.getElementById('score-white');
+    const turnEl = document.getElementById('turn');
+
+    function initBoard(){
+      board = Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+      const mid = SIZE/2;
+      board[mid-1][mid-1] = -1;
+      board[mid][mid] = -1;
+      board[mid-1][mid] = 1;
+      board[mid][mid-1] = 1;
+    }
+
+    function render(){
+      boardEl.innerHTML = '';
+      const valid = getAllValidMoves(current);
+      for(let y=0;y<SIZE;y++){
+        for(let x=0;x<SIZE;x++){
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.x = x; cell.dataset.y = y;
+
+          const v = board[y][x];
+          if(v!==0){
+            const d = document.createElement('div');
+            d.className = 'disc ' + (v===1? 'black':'white');
+            cell.appendChild(d);
+          } else if(valid.has(coordKey(x,y))){
+            const hint = document.createElement('div');
+            hint.className = 'hint';
+            cell.appendChild(hint);
+            cell.addEventListener('click',()=>tryMove(x,y));
+          } else {
+            cell.addEventListener('click',()=>tryMove(x,y));
+          }
+
+          boardEl.appendChild(cell);
+        }
+      }
+      updateScores();
+      turnEl.textContent = current===1? '黒':'白';
+
+      // If AI is enabled and it's AI's turn, play
+      if(aiEnabled && current === -1){
+        setTimeout(()=>aiPlay(), 180);
+      }
+    }
+
+    function coordKey(x,y){return `${x},${y}`}
+
+    const DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+
+    function inBounds(x,y){return x>=0 && x<SIZE && y>=0 && y<SIZE}
+
+    // returns array of positions to flip if move at (x,y) by player, else empty array
+    function flipsForMove(x,y,player){
+      if(board[y][x]!==0) return [];
+      let flips = [];
+      for(const [dx,dy] of DIRS){
+        let nx = x+dx, ny = y+dy;
+        let tmp = [];
+        while(inBounds(nx,ny) && board[ny][nx] === -player){
+          tmp.push([nx,ny]); nx+=dx; ny+=dy;
+        }
+        if(tmp.length>0 && inBounds(nx,ny) && board[ny][nx] === player){
+          flips = flips.concat(tmp);
+        }
+      }
+      return flips;
+    }
+
+    function getAllValidMoves(player){
+      const res = new Map();
+      for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++){
+        const f = flipsForMove(x,y,player);
+        if(f.length>0) res.set(coordKey(x,y), f);
+      }
+      return res;
+    }
+
+    function tryMove(x,y){
+      const flips = flipsForMove(x,y,current);
+      if(flips.length===0){
+        // invalid
+        return;
+      }
+      applyMove(x,y,current,flips);
+      nextTurn();
+    }
+
+    function applyMove(x,y,player,flips){
+      board[y][x] = player;
+      for(const [fx,fy] of flips) board[fy][fx] = player;
+    }
+
+    function nextTurn(){
+      current = -current;
+      const valid = getAllValidMoves(current);
+      if(valid.size===0){
+        // pass or game end
+        const otherValid = getAllValidMoves(-current);
+        if(otherValid.size===0){
+          // game over
+          render();
+          setTimeout(()=>announceResult(), 80);
+          return;
+        } else {
+          // pass
+          alert((current===1? '黒':'白') + ' は合法手が無いためパスしました。');
+          // keep current as -current (since we already inverted), invert back?
+          current = -current; // revert to other player
+          // then switch again so code path is consistent
+          current = -current;
+        }
+      }
+      render();
+    }
+
+    function announceResult(){
+      const {black,white} = countScore();
+      let msg = `ゲーム終了\n黒: ${black}  白: ${white}\n`;
+      if(black>white) msg += '黒の勝ち！';
+      else if(white>black) msg += '白の勝ち！';
+      else msg += '引き分け。';
+      alert(msg);
+    }
+
+    function countScore(){
+      let black=0, white=0;
+      for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++){
+        if(board[y][x]===1) black++; else if(board[y][x]===-1) white++;
+      }
+      return {black,white};
+    }
+
+    function updateScores(){
+      const s = countScore();
+      scoreBlackEl.textContent = s.black;
+      scoreWhiteEl.textContent = s.white;
+    }
+
+    // --- AI ---
+    function aiPlay(){
+      const moves = Array.from(getAllValidMoves(current).entries());
+      if(moves.length===0) { nextTurn(); return; }
+      let choice;
+      if(aiLevel==='random'){
+        choice = moves[Math.floor(Math.random()*moves.length)];
+      } else if(aiLevel==='greedy'){
+        // pick the move that flips the most pieces (and prefer corners)
+        let best = -Infinity;
+        for(const [key,flips] of moves){
+          const [x,y] = key.split(',').map(Number);
+          let score = flips.length;
+          // corners bonus
+          if((x===0||x===SIZE-1) && (y===0||y===SIZE-1)) score += 10;
+          if(score>best){best = score; choice=[key,flips];}
+        }
+      }
+      const [key,flips] = choice;
+      const [x,y] = key.split(',').map(Number);
+      applyMove(x,y,current,flips);
+      nextTurn();
+    }
+
+    // UI bindings
+    document.getElementById('restart').addEventListener('click',()=>{initBoard();current=1;render();});
+    document.getElementById('aiToggle').addEventListener('change',e=>{aiEnabled=e.target.checked; render();});
+    document.getElementById('aiLevel').addEventListener('change',e=>{aiLevel=e.target.value});
+    document.getElementById('flip-start').addEventListener('click',()=>{current = -current; render();});
+    document.getElementById('passBtn').addEventListener('click',()=>{ nextTurn(); });
+
+    // init
+    initBoard(); render();
+
+  </script>
+</body>
+</html>
