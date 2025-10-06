@@ -7,7 +7,7 @@
 <style>
   body {
     font-family: "Segoe UI", sans-serif;
-    background: radial-gradient(circle at center, #222, #000);
+    background: radial-gradient(circle at center, #111, #000);
     color: white;
     text-align: center;
     height: 100vh;
@@ -15,6 +15,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    align-items: center;
   }
   h1 { font-size: 2rem; margin-bottom: 1rem; }
   #instruction { font-size: 3rem; font-weight: bold; margin: 2rem 0; color: #4ef3ff; }
@@ -23,8 +24,9 @@
   button {
     background: #4ef3ff; color: #000; border: none; border-radius: 12px;
     padding: 12px 24px; font-size: 1.2rem; cursor: pointer;
+    transition: 0.2s;
   }
-  button:hover { background: #35bcd6; }
+  button:hover { background: #35bcd6; transform: scale(1.05); }
 </style>
 </head>
 <body>
@@ -45,14 +47,17 @@ const instructions = [
   { text: "上じゃない", avoid: ["ArrowUp", "w", "W"] },
   { text: "下じゃない", avoid: ["ArrowDown", "s", "S"] },
   { text: "上以外", avoid: ["ArrowUp", "w", "W"] },
-  { text: "無視", avoid: ["ArrowRight","ArrowLeft","ArrowUp","ArrowDown","w","a","s","d","W","A","S","D"] },
-  { text: "下じゃないじゃない", correct: ["ArrowDown", "s", "S"] } // 二重否定
+  { text: "下じゃないじゃない", correct: ["ArrowDown", "s", "S"] },
+  { text: "無視", ignore: true } // 特殊ルール
 ];
 
 let currentInstruction = null;
 let score = 0;
 let timeoutId = null;
 let acceptingInput = false;
+let timeLimit = 3000; // 初期3秒
+const minTimeLimit = 1000; // 最短1秒
+const speedUp = 200; // 成功ごとに0.2秒短縮
 
 const instructionEl = document.getElementById("instruction");
 const scoreEl = document.getElementById("score");
@@ -68,15 +73,27 @@ function nextInstruction() {
 
   timeoutId = setTimeout(() => {
     if (acceptingInput) {
-      endGame("時間切れ！");
+      if (currentInstruction.ignore) {
+        // 「無視」で押さなかった → 成功！
+        success();
+      } else {
+        endGame("時間切れ！");
+      }
     }
-  }, 3000);
+  }, timeLimit);
 }
 
 function handleInput(e) {
   if (!acceptingInput) return;
   const key = e.key;
 
+  // 「無視」指示中に何か押したら即アウト
+  if (currentInstruction.ignore) {
+    endGame("押したらダメ！『無視』だった！");
+    return;
+  }
+
+  // 通常指示の処理
   if (currentInstruction.correct) {
     if (currentInstruction.correct.includes(key)) {
       success();
@@ -98,7 +115,9 @@ function success() {
   score++;
   scoreEl.textContent = "スコア: " + score;
   messageEl.textContent = "正解！";
-  setTimeout(nextInstruction, 1000);
+  // スピードアップ
+  timeLimit = Math.max(minTimeLimit, timeLimit - speedUp);
+  setTimeout(nextInstruction, 800);
 }
 
 function endGame(reason) {
@@ -111,6 +130,7 @@ function endGame(reason) {
 
 startBtn.addEventListener("click", () => {
   score = 0;
+  timeLimit = 3000;
   scoreEl.textContent = "スコア: 0";
   startBtn.style.display = "none";
   nextInstruction();
