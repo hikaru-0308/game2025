@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反射神経ゲーム：指示に従え！</title>
+<style>
+  body {
+    font-family: "Segoe UI", sans-serif;
+    background: radial-gradient(circle at center, #222, #000);
+    color: white;
+    text-align: center;
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  h1 { font-size: 2rem; margin-bottom: 1rem; }
+  #instruction { font-size: 3rem; font-weight: bold; margin: 2rem 0; color: #4ef3ff; }
+  #score { font-size: 1.5rem; margin-bottom: 1rem; }
+  #message { font-size: 1.2rem; margin-top: 1rem; height: 2rem; }
+  button {
+    background: #4ef3ff; color: #000; border: none; border-radius: 12px;
+    padding: 12px 24px; font-size: 1.2rem; cursor: pointer;
+  }
+  button:hover { background: #35bcd6; }
+</style>
+</head>
+<body>
+  <h1> 指示に従え！</h1>
+  <div id="score">スコア: 0</div>
+  <div id="instruction">スタートを押してね</div>
+  <button id="startBtn">スタート</button>
+  <div id="message"></div>
+
+<script>
+const instructions = [
+  { text: "右", correct: ["ArrowRight", "d", "D"] },
+  { text: "左", correct: ["ArrowLeft", "a", "A"] },
+  { text: "上", correct: ["ArrowUp", "w", "W"] },
+  { text: "下", correct: ["ArrowDown", "s", "S"] },
+  { text: "右じゃない", avoid: ["ArrowRight", "d", "D"] },
+  { text: "左じゃない", avoid: ["ArrowLeft", "a", "A"] },
+  { text: "上じゃない", avoid: ["ArrowUp", "w", "W"] },
+  { text: "下じゃない", avoid: ["ArrowDown", "s", "S"] },
+  { text: "上以外", avoid: ["ArrowUp", "w", "W"] },
+  { text: "無視", avoid: ["ArrowRight","ArrowLeft","ArrowUp","ArrowDown","w","a","s","d","W","A","S","D"] },
+  { text: "下じゃないじゃない", correct: ["ArrowDown", "s", "S"] } // 二重否定
+];
+
+let currentInstruction = null;
+let score = 0;
+let timeoutId = null;
+let acceptingInput = false;
+
+const instructionEl = document.getElementById("instruction");
+const scoreEl = document.getElementById("score");
+const messageEl = document.getElementById("message");
+const startBtn = document.getElementById("startBtn");
+
+function nextInstruction() {
+  messageEl.textContent = "";
+  const idx = Math.floor(Math.random() * instructions.length);
+  currentInstruction = instructions[idx];
+  instructionEl.textContent = currentInstruction.text;
+  acceptingInput = true;
+
+  timeoutId = setTimeout(() => {
+    if (acceptingInput) {
+      endGame("時間切れ！");
+    }
+  }, 3000);
+}
+
+function handleInput(e) {
+  if (!acceptingInput) return;
+  const key = e.key;
+
+  if (currentInstruction.correct) {
+    if (currentInstruction.correct.includes(key)) {
+      success();
+    } else {
+      endGame("間違い！");
+    }
+  } else if (currentInstruction.avoid) {
+    if (currentInstruction.avoid.includes(key)) {
+      endGame("押しちゃダメ！");
+    } else {
+      success();
+    }
+  }
+}
+
+function success() {
+  clearTimeout(timeoutId);
+  acceptingInput = false;
+  score++;
+  scoreEl.textContent = "スコア: " + score;
+  messageEl.textContent = "正解！";
+  setTimeout(nextInstruction, 1000);
+}
+
+function endGame(reason) {
+  clearTimeout(timeoutId);
+  acceptingInput = false;
+  messageEl.textContent = reason + " ゲームオーバー！";
+  instructionEl.textContent = "スコア: " + score;
+  startBtn.style.display = "inline-block";
+}
+
+startBtn.addEventListener("click", () => {
+  score = 0;
+  scoreEl.textContent = "スコア: 0";
+  startBtn.style.display = "none";
+  nextInstruction();
+});
+
+window.addEventListener("keydown", handleInput);
+</script>
+</body>
+</html>
